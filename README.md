@@ -1,4 +1,4 @@
-# CNC Milling tool engagment
+# CNC Milling tool engagement
 During milling cutter spins and moves forward.
 This project assumes to use Helix cutter with <2, 4> blades.
 
@@ -55,43 +55,77 @@ This is not really a force, it just shows how much resistance (wood) is opposing
 * Left graph is difference between minimal and maximum force in cycle. Minimal values indicate constant resitance without change.
 * Right graph shows force magnitude.
 
-### Side note
+### Side notes
 `Y axis` can be treated as height fraction of full cycle depth.
 Cycle depth of cutter is measured for 1 blade. It means how high is same blade after rotating it by 360° (Height change per revolution).
 
-You can use this for any model, treat values as 0-80%
+You can use this for any model, treat values as 0-100%.
+
+Helix angle can be omited, as it describe relation between radius and cycle depth, while cycle depth  enough for all calculations and every case.
+This chart shows cutter of diameter 4 and cycle depth of 10mm.
+In result we get helix angle of ~38.7°.
+
+### Normalized plots
+Plots are normalized to show same **Feed** and **RPM** rather than chipload.
+
 
 #### 2 Blades
-![Force difference (vibrations)](images/PseudoWibracje_2_.png)
+![Force difference (vibrations)](images/Resistance_2_1mm_.png)
 
 #### 3 Blades
-![Force difference (vibrations)](images/PseudoWibracje_3_.png)
+![Force difference (vibrations)](images/Resistance_3_1mm_.png)
 
 #### 4 Blades
-![Force difference (vibrations)](images/PseudoWibracje_4_.png)
+![Force difference (vibrations)](images/Resistance_4_1mm_.png)
+
+#### 5 Blades
+![Force difference (vibrations)](images/Resistance_5_1mm_.png)
+
+#### 6 Blades
+![Force difference (vibrations)](images/Resistance_6_1mm_.png)
 
 
 ## Results of steady work
 Combined plot, shows how magnitude scales with force differences.
 Blue colors means work conditions are more stable! This should increase life of spindle.
 
-![Work conditions 2 blades](images/PseudoWibracje_2_Skalowane.png)
-![Work conditions 3 blades](images/PseudoWibracje_3_Skalowane.png)
-![Work conditions 4 blades](images/PseudoWibracje_4_Skalowane.png)
+![Work conditions 2 blades](images/Resistance_2_1mm_Combined.png)
 
-# Summary
+![Work conditions 3 blades](images/Resistance_3_1mm_Combined.png)
+
+![Work conditions 4 blades](images/Resistance_4_1mm_Combined.png)
+
+<!-- ![Work conditions 5 blades](images/Resistance_5_Combined.png) -->
+<!-- ![Work conditions 6 blades](images/Resistance_6_Combined.png) -->
+
+# Summary and key observations
 ### Best engage for end cutters is:
 - 2/4 blades: 50%
-- 3 blades: 33% or 66%
+- 3/6 blades: 33% or 66%
+- 5 blades: 50%
 
-Keep in mind bigger engage increased load on spindle.
+### Optimal depth
+- 2 blades: 50%
+- 3 blades: 33% / 66%
+- 4 blades: 25% / 50%
+- 5 blades: 20% / 40%
+- 6 blades: 17% / 33% / 50%
 
-## Extra plot of rubbing
+# Extra section
+## Gap between cuts: material rubbing at small chipload
 New cut angle is changing based on chipload and radius!
 
 But distance is always the same, exactly **50%** of chipload for any blade number.
 
-Rubbing is chipload dependent.
 For smaller chiploads there is not enough material to cut.
 
 ![Rubbing example](images/RubbingExample.png)
+
+### Width of left over material
+This distance can be calculated using given formula:
+
+$$W_r = Radius - \sqrt{Radius^2 - \left(\frac{Chipload}{2}\right)^2}$$
+
+Formula is applicable for real model.
+
+![Rubbing plot](images/LeftOver.png)

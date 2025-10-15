@@ -1,4 +1,3 @@
-
 import os
 import math
 import numpy as np
@@ -104,33 +103,39 @@ def CompareCirlceCost():
     plt.show()
 
 
-def solve(r, ch, a, b, *, STEP=0.001, originX=None, wRad=None):
-    if originX is None:
-        initR = np.sin(wRad) * r
-        first = np.clip(initR - 2 / r, -r, r)
-        end = np.clip(initR + 2 / r, -r, r)
-        X = np.arange(first, end, STEP, dtype=np.double)
+def solveIntersection(r, c, a, b, *, wRad=0, XPrec=None):
+    if XPrec is None:
+        AMOUNT = 2000
+        if -np.pi / 4 < wRad < np.pi / 4:
+            "Center"
+            X = np.linspace(- r / 1.5, r / 1.5, AMOUNT, dtype=np.double)
+        elif wRad < 0:
+            "Negative"
+            X = np.linspace(- r, 0, AMOUNT, dtype=np.double)
+        else:
+            "Positive"
+            X = np.linspace(0, r, AMOUNT, dtype=np.double)
     else:
-        # print(f"Origin: {originX}")
-        X = np.linspace(originX - r / 4.5, originX + r / 4.5, 20000, dtype=np.double)
-        # X = np.linspace(originX - 1, originX +1, 200)
-    # x2 = np.linspace(-90, 90, NUM)
+        X = np.linspace(XPrec - r / 4, XPrec + r / 4, 50000, dtype=np.double)
+        # X = np.linspace(XPrec - c / r*2, XPrec + c / r*2, 10000, dtype=np.double)
+        X = np.clip(X, -r, r)
+
     y1 = a * X + b
 
-    wDeg = X / r * 90
+    # wDeg = X / r * 90
     "Inverse map of X = sin(rad)"
-    wDeg = np.arcsin(X / r) / np.pi * 180
-    wDeg[np.isnan(wDeg)] = 0
-    wRad = np.deg2rad(wDeg)
+    wRad = np.arcsin(X / r)
+    wRad[np.isnan(wRad)] = 0
+    # wRad = np.deg2rad(wDeg)
 
     # x2 = np.sin(wRad) * r
     # wRad = np.arcsin(wRad)
-    Line1y = np.cos(wRad) * r + np.sin(wRad) * (ch / 2) - ch / 2 - ch
+    Line1y = np.cos(wRad) * r + np.sin(wRad) * (c / 2) - c / 2 - c
     # y2 = np.cos(wRad) * r + np.sin(wRad) * ch - ch / 2
     y2 = Line1y
     # plt.scatter(wDeg / 90 * Radius, y2)
     diff = np.abs(y2 - y1).astype(float)
-    diff[np.isnan(diff)] = r
+    # diff[np.isnan(diff)] = r
     # plt.plot(wDeg)
     # plt.plot(x, x2, linewidth=3)
     # plt.plot(X, y2, linewidth=3, color='red')
@@ -149,15 +154,19 @@ def solve(r, ch, a, b, *, STEP=0.001, originX=None, wRad=None):
     return (xRes, yRes)
 
 
-def findCutDistance(wRad, radius, Chip):
-    """"""
+def findCutDistance(wRad, radius, Chip, *, plotLine=False):
+    """
+        wRad - angle in radians
+        radius - radius of cutter
+        Chip - distance to move
+    """
+    "P0 is moving center for current cut"
     "P1 is previous cut"
     "P2 is current cut"
     P2x = np.sin(wRad) * radius
     P2y = np.cos(wRad) * radius + np.sin(wRad) * (Chip / 2) - Chip / 2
     # plt.scatter(P2x, P2y)
 
-    "P0 is moving center"
     P0x = wRad * 0
     # P0y = np.sin(wRad) * Chip / 2 - Chip / 2
     P0y = (np.sin(wRad) - 1) * Chip / 2
@@ -181,14 +190,15 @@ def findCutDistance(wRad, radius, Chip):
     # y = np.sin(wRad) * Radius + np.cos(wRad) * Chip
     # P1y = np.sin(wRad) * Radius + np.cos(wRad) * Chip - Chip
     # P1x = (P1y - b) / a
-    P1x, P1y = solve(radius, Chip, a, b, wRad=wRad)
-    plt.plot([P0x, P1x], [P0y, P1y], color='gray', alpha=0.2)
-    P1x, P1y = solve(radius, Chip, a, b, originX=P1x)
-
-    plt.scatter(P1x, P1y, color='lightgreen')
-    # CutDeg =
-    color = "orange" if np.rad2deg(wRad) > -95.8 else "purple"
-    plt.plot([P1x, P2x], [P1y, P2y], color=color, alpha=0.8, linewidth=3)
+    P1x, P1y = solveIntersection(radius, Chip, a, b, wRad=wRad)
+    P1x, P1y = solveIntersection(radius, Chip, a, b, XPrec=P1x)
+    # P1x, P1y = solveIntersection(radius, Chip, a, b, XPrec=P1x)
+    if plotLine:
+        plt.plot([P0x, P1x], [P0y, P1y], color='gray', alpha=0.2)
+        plt.scatter(P1x, P1y, color='lightgreen')
+        # CutDeg =
+        color = "orange" if np.rad2deg(wRad) > -95.8 else "purple"
+        plt.plot([P1x, P2x], [P1y, P2y], color=color, alpha=0.8, linewidth=3)
 
     dist = np.sqrt(np.pow(P1x - P2x, 2) + np.pow(P1y - P2y, 2))
     return dist
@@ -198,27 +208,63 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 
-def cosShifted(x, up, center):
-    # offset = np.sin(-x * np.pi / 2) * up
-    # return np.cos((x - center) / 2 * np.pi) * (1 - up)
-    phase = np.cos(x * np.pi / 2) * center
-    # plt.figure()
-    # plt.plot(phase)
-    # plt.show()
-    lift = np.cos(phase) * up
-    scaled = np.cos((x - phase) / 2 * np.pi) * (1 - up) + lift
-    return scaled
+def ModelFunction(deg, chip, radius):
+    out = np.cos(np.deg2rad(deg))
+    up = np.atan(chip / radius) / chip  # UP factor
+    center = np.tan(chip / radius)
+    center = -np.tan(Radius / Chip) / 16 / 1.5
+
+    "UP 1"
+    # up = up * (1 - np.sin(np.deg2rad((deg + 90))))
+    # out = out + up
+
+    "UP with cosin"
+    # c = np.cos(np.deg2rad((deg + 90) / 2))  # Falling <1, 0> <-90, 90>
+    # up = up * c
+    # out = out + up
+    # y = (chip / (2 * radius)) * (1 - np.cos(np.deg2rad(deg)))
+    # return y
+    "UP left half cosin"
+    # c = np.cos(np.deg2rad((deg + 90) * 2))  # Falling <1, 0> <-90, 90>
+    # return c
+    # up = up * c
+    # out = out + up
+    "GPT"
+    theta = np.radians(deg)
+
+    # Vertical shift from your ±90° value
+    D = np.arctan(chip / radius) / chip  # verify your estimation
+    # Verify calculation
+    # np.arctan(2/6)/2 ≈ 0.1618 (this is too high; maybe adjust scale)
+    D = 0.0324
+
+    # Horizontal shift for peak
+    theta0 = np.radians(13.4)
+
+    # Amplitude and frequency
+    A = 2.0415 - D           # peak minus baseline
+    B = 1.0                  # will tweak to match ±90° value
+
+    # Scale B to match ±90° close to baseline
+    # Simple approach: scale so cos(B*(90-θ0)) ≈ (0.0324 - D)/A
+    target = (0.0324 - D) / A
+    B = np.arccos(target) / np.radians(90 - 13.4)
+
+    # Final function
+    return A * np.cos(B * (theta - theta0)) + D
+    return out * chip
 
 
 if __name__ == "__main__":
     ""
-    wDeg = np.linspace(-70, 80, 200)
+    wDeg = np.linspace(-70, 80, 20)
     wRad = np.deg2rad(wDeg)
     Flute = 2
-    Radius = 5
+    Radius = 6
     ChipRev = 2
     Chip = ChipRev / Flute
 
+    "For cuts"
     wDeg = np.linspace(0, 180, 50)
     wRad = np.deg2rad(wDeg)
 
@@ -230,16 +276,17 @@ if __name__ == "__main__":
     plt.plot(x, y - Chip, color="green", label="Previous cut")
     plt.plot(x, y, label="Current cut", color='blue', linewidth=2)
 
-    wDeg = 60
-    wRad = np.deg2rad(wDeg)
-    XDeg = np.linspace(-90, 90, 70)
     # XDeg = np.linspace(-115, -90, 40)  # Rubbing angle is changing
+
+    "For thicknes estimation"
+    XDeg = np.linspace(-90, 90, 80)
 
     EngageY = XDeg * 0
     for wi, w in enumerate(XDeg):
         wRad = np.deg2rad(w)
-        dist = findCutDistance(wRad, Radius, Chip)
+        dist = findCutDistance(wRad, Radius, Chip, plotLine=True)
         EngageY[wi] = dist
+        # print(f"{w:>3.2f}, {dist:>3.5f}")
 
     XRad = np.deg2rad(XDeg)
     tempY = np.cos(XRad) * Radius
@@ -254,6 +301,14 @@ if __name__ == "__main__":
         [0, 0], [-Chip, 0], label="ChipLoad per 1 blade ( 180° )",
         linewidth=3, color='red', alpha=0.8
     )
+    print(Radius, Chip)
+    RubWidth = Radius - np.sqrt(np.pow(Radius, 2) - np.pow(Chip / 2, 2))
+    print("Rub Width:", RubWidth)
+    # plt.plot(
+    # [-Radius, -Radius + RubWidth], [-Chip * 1.5, -Chip * 1.5],
+    # color='Cyan', linewidth=3, label='Rub Width'
+    # )
+
     # plt.plot(XDeg / 90 * Radius, tempY + Chip, label="Cos function", alpha=0.7)
     handles, labels = plt.gca().get_legend_handles_labels()
     newLine = Line2D([0, 0], [0, 1], color='orange', alpha=1, linewidth=3)
@@ -268,34 +323,42 @@ if __name__ == "__main__":
     plt.tight_layout()
     # plt.show()
 
-    ""
-    # plt.close("all")
-    plt.figure()
-    diff = EngageY - np.cos(XRad) * Chip
-    plt.plot(XDeg, diff, label="Amplified value in real model")
-    plt.title("Difference between 'Cos' model and real model.")
-    plt.legend()
-    plt.grid()
-    plt.tight_layout()
+    "Difference plot"
+    # plt.figure()
+    # diff = EngageY - np.cos(XRad) * Chip
+    # plt.plot(XDeg, diff, label="Amplified value in real model")
+    # plt.title("Difference between 'Cos' model and real model.")
+    # plt.legend()
+    # plt.grid()
+    # plt.tight_layout()
 
-    plt.figure()
+    # plt.close("all")
+    plt.figure(figsize=(12, 8))
+    # plt.subplot(1, 2, 1)
     # Y = moving_average(Y, 5, "keep")
-    plt.plot(XDeg, EngageY, label="Moving cutter approximation", color='green', linewidth=3)
+    plt.plot(XDeg, EngageY, label="Moving cutter model", color='green', linewidth=3)
 
     XRad = np.deg2rad(XDeg)
     tempY = np.cos(XRad) * Chip  # + np.sin(XRad) * Chip
     plt.plot(XDeg, tempY, color='blue', label="Cos function", alpha=0.5)
+
     up = 0.05
     center = 0.05
     up = np.tan(Chip / Radius) / 2
     center = -np.tan(Radius / Chip) / 16 / 1.5
-
-    shifted = cosShifted(XDeg / 90, up, center) * Chip
+    # shifted = cosShifted(XDeg / 90, up, center) * Chip
+    shifted = ModelFunction(XDeg, Chip, Radius)
     # plt.plot(XDeg, shifted, label="Shifted", color='red')
     diff = tempY - EngageY
     plt.grid(True)
     # aprox = np.cos(XRad) + sigmoid(X / 90) / 10
+    # plt.plot(XDeg, shifted, label="Custom shifted", color='red')
+    # plt.xticks(np.arange(-90, 90.01, 30))
 
+    # plt.subplot(1, 2, 2)
+    # plt.plot(XDeg, np.sin(XRad), label='sin')
+    # plt.plot(XDeg, np.cos(XRad), label='cos')
+    # plt.plot(XDeg, np.atan(XRad), label='tan')
     # plt.figure()
     # plt.plot(X, diff, label="Cos function")
 

@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -65,7 +66,7 @@ def HeatSurface():
     for di, Diameter in enumerate([3, 4, 6]):
         plt.subplot(2, 2, di + 1)
         Engage = np.linspace(0.1, 1, 800, dtype=float)
-        Depth = np.linspace(1, 20, 800, dtype=float)
+        Depth = np.linspace(1, 15, 800, dtype=float)
         ChipLoad = np.linspace(0.01, .6, 800, dtype=float)
 
         # CalcCutingArcLength(Diameter, Engage)
@@ -132,14 +133,23 @@ def AttackSurface():
     plt.grid(True, color="black")
     plt.title(f"Płaszczyzna Ataku $[mm^2]$")
     for deo in [3.33, 5, 6.66, 10]:
+        break
         plt.plot([deo, deo], [ChipLoad[0], ChipLoad[-1]],
                  color='black', alpha=0.7, dashes=[3, 4], linewidth=2)
+
+    plt.plot([5, 5], [ChipLoad[0], ChipLoad[-1]],
+             color='black', alpha=0.5, dashes=[2, 2], linewidth=1)
+    plt.plot([0, 25], [0.05, 0.05],
+             color=(1, 0, 0), alpha=0.3, dashes=[3, 1], linewidth=2)
+
     cbr = plt.colorbar()
     cbtks = cbr.get_ticks()
     cbtks = np.linspace(cbtks[0], cbtks[-1], len(cbtks) * 2 - 1)
     cbtksLabels = cbtks.round(2)
     cbr.set_ticks(cbtks)
     cbr.set_ticklabels(cbtksLabels)
+    plt.xlim([2, 20])
+    plt.savefig(os.path.join("images", "ChipAttack.png"))
 
 
 def ChipSizePlot():
@@ -154,15 +164,15 @@ def ChipSizePlot():
     # XEng, YDep = np.meshgrid(Engage, Depth)
     # XDep, YChp = np.meshgrid(Depth, ChipLoad)
     XEng, YChp = np.meshgrid(Engage, ChipLoad)
-    usedCmap = get_cmap('nipy_spectral')
-    usedNorm = Normalize(0, 4, False)
+    # usedCmap = get_cmap('nipy_spectral')
+    # usedNorm = Normalize(0, 4, False)
+    # AREA = YChp * np.cos(abs(0.5 - XEng) * np.pi)
 
-    AREA = YChp * np.cos(abs(0.5 - XEng) * np.pi)
     # AREA = ArcLengths * YChp
     # plt.contour(YChp, XEng, AREA, levels=9, cmap=usedCmap, linewidths=2)
     x = np.linspace(0, 0.5, 300)
     y = 100 * np.cos((0.5 - x) * np.pi)
-    plt.plot(x, y, linewidth=3, color='red')
+    plt.plot(x * 100, y, linewidth=3, color='red')
     plt.grid(True)
 
     # AREA = EstimateMoonArcArea(Diameter, YChp, XEng)
@@ -178,18 +188,20 @@ def ChipSizePlot():
     # plt.xticks(xtks)
     # plt.yticks(np.arange(Depth[0], Depth[-1] + 0.001, 0.5))
     # plt.semilogy()
+    plt.tight_layout()
+    plt.savefig(os.path.join("images", "ChipEngagment.png"))
 
 
 plt.tight_layout()
 
 
 if __name__ == "__main__":
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(12, 8), dpi=150)
     HeatSurface()
     plt.subplot(2, 2, 4)
     AttackSurface()
-    # plt.figure(figsize=(4,3))
-    # ChipSizePlot()
+    plt.figure(figsize=(7, 5), dpi=150)
+    ChipSizePlot()
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()

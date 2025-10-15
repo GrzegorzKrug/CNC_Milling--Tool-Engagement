@@ -2,7 +2,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from matplotlib.cm import get_cmap
+# from matplotlib.cm import get_cmap
+from matplotlib import colormaps
 from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D
 from yasiu_math.convolve import moving_average
@@ -25,7 +26,7 @@ def engageAsSpining(x, up, center):
 
 
 @njit(cache=True)
-def CalcEngageAreaAngle(degreesIn, omega, engage, useClimb=True):
+def CalcEngageAreaAngle(degreesIn, omega, engage, useClimb=True, radius=1):
     thAngle = np.sin((0.5 - engage) * np.pi) * 90
     # print(engage, th)
     degrees = degreesIn - omega
@@ -62,22 +63,57 @@ def CalcEngageAreaAngle(degreesIn, omega, engage, useClimb=True):
         # area[degHalf > 90] = 0
 
     area[area < 0] = 0
-    return area
+    return area * radius
 
 
 @njit()
-def getCombined(rotation, FLUTES, DEPTH, CYCLE_DEPTH, ENGAGE=0.5, useClimb=True, resolution=0.25):
-    angleStep = 360 / FLUTES
+def CalcTouchingArea(
+    rotation, flutes, DEPTH, CYCLE_DEPTH,
+    ENGAGE=0.5, useClimb=True, rotationResolution=0.25,
+    radius=1
+):
+    """
+    Integration of helix cutter shape per given array of angle positions.
+
+    Args:
+        rotation: np.ndarray
+            Angle position
+
+        flutes: int
+            amount of cutting blades
+
+        DEPTH: `_type_`
+            Cut depth to calculate
+
+        CYCLE_DEPTH: `_type_`
+            Cutter length after blade does 360°
+
+        ENGAGE: `float` (optional), defaults to 0.5
+            _description_
+
+        useClimb: `bool` (optional), defaults to True
+            _description_
+
+        resolution: `float` (optional), defaults to 0.25
+            _description_
+
+
+    Returns:
+        _type_: _description_
+
+    """
+    bladeAngleOffset = 360 / flutes  # Offset per one blade
     endAngle = DEPTH / CYCLE_DEPTH * 360
     combinedForces = rotation * 0
 
-    for flut in range(FLUTES):
-        OMEGA = np.arange(0, endAngle + 0.01, resolution)
+    for bladeNum in range(flutes):
+        OMEGA = np.arange(0, endAngle + 0.01, rotationResolution)
         for omega in OMEGA:
             curFor = CalcEngageAreaAngle(
-                rotation, omega + flut * angleStep, ENGAGE,
+                rotation, omega + bladeNum * bladeAngleOffset, ENGAGE,
                 useClimb=useClimb,
                 #   chip=chip, radius=radius
+                radius=radius
             ) / len(OMEGA)
             combinedForces += curFor
 
@@ -229,81 +265,99 @@ def detect_ramp_and_stable(signal, time=None, tolerance=0.03, min_stable_duratio
     return rampLen / len(signal), stableLen / len(signal), decayLen / len(signal)
 
 
-@measure_real_time_decorator
-def PlotToolContact(FLUTES=2, ENGAGE=0.5, DEPTH=3, DoPlot=True, resolution=1):
-    ROTATION = np.arange(-90, 180 * 2 + 30, resolution, dtype=float)
+# @measure_real_time_decorator
+def PlotToolContact(
+    flutes=2, engage=0.5, cutDepth=3, *, radius=1, doPlot=True,
+    positionResolution=1, IntegrationRes=0.25
+):
+    RotPosition = np.arange(-90, 180 * 2 + 30, positionResolution, dtype=float)
     # DEPTH = np.linspace(2, 6, 300)
     # CHIP = 0.3
     # FLUTES = 2
     # ENGAGE = 0.75
     CYCLE_DEPTH = 10  # Height to make 360
     # DEPTH = 3
-    SELECTION_MASK = (180 <= ROTATION) & (ROTATION <= (180 + 360))
+    SELECTION_MASK = (180 <= RotPosition) & (RotPosition <= (180 + 360))
 
     AVG_N = 3
-    angleStep = 360 / FLUTES
-    endAngle = DEPTH / CYCLE_DEPTH * 360
-    usedCmap = get_cmap("gist_rainbow")
+    angleStep = 360 / flutes
+    endAngle = cutDepth / CYCLE_DEPTH * 360
+    # usedCmap = get_cmap("gist_rainbow")
+    usedCmap = colormaps['gist_rainbow']
 
     # THRESHOLD = np.sin((ENGAGE) * np.pi) * 90
     # for en in np.linspace(0, 1, 21):
     # print(f"Engage: {en:>3.2f}, alfa: {np.sin((0.5 - en) * np.pi) * 90:>4.2f}")
     # print(f"Threshold: {THRESHOLD} for engage: {ENGAGE}")
 
-    if DoPlot:
+    if doPlot:
         plt.subplots(
             2, 2, figsize=(12, 8),
             sharex=True,
         )
         plt.subplot(2, 2, 1)
-    combinedForces = getCombined(ROTATION, FLUTES, DEPTH, CYCLE_DEPTH, ENGAGE=ENGAGE)
+    combinedForces = CalcTouchingArea(
+        RotPosition, flutes, cutDepth, CYCLE_DEPTH,
+        ENGAGE=engage, rotationResolution=IntegrationRes,
+        radius=radius
+    )
+
     if AVG_N > 0:
         # combinedForces = moving_average(combinedForces, AVG_N)
         combinedForces = moving_average(combinedForces, AVG_N)
     SCOPE = combinedForces[SELECTION_MASK]
     MAX_FORCE = SCOPE.max()
-    GAP = detect_ramp_and_stable(SCOPE)
+    # GAP = detect_ramp_and_stable(SCOPE)
+    GAP = [0, 0, 0]
     DIFF_CLIMB = SCOPE.max() - SCOPE.min()
-    if DoPlot:
-        plt.plot(ROTATION, combinedForces)
+    if doPlot:
+        plt.plot(RotPosition, combinedForces)
 
-    if DoPlot:
+    if doPlot:
         plt.subplot(2, 2, 3)
-        for flut in range(FLUTES):
+        for flut in range(flutes):
             "INITIAL CUT"
-            curFor = CalcEngageAreaAngle(ROTATION, flut * angleStep, engage=ENGAGE)
-            plt.plot(ROTATION, curFor, color=usedCmap(flut / FLUTES))
+            curFor = CalcEngageAreaAngle(RotPosition, flut * angleStep, engage=engage, radius=radius)
+            plt.plot(RotPosition, curFor, color=usedCmap(flut / flutes))
 
             "END CUT"
-            curFor = CalcEngageAreaAngle(ROTATION, flut * angleStep + endAngle, engage=ENGAGE)
-            plt.plot(ROTATION, curFor, color=usedCmap(flut / FLUTES), linestyle="dashed")
+            curFor = CalcEngageAreaAngle(RotPosition, flut * angleStep +
+                                         endAngle, engage=engage, radius=radius)
+            plt.plot(RotPosition, curFor, color=usedCmap(flut / flutes), linestyle="dashed")
 
         plt.subplot(2, 2, 2)
-    combinedForces = getCombined(ROTATION, FLUTES, DEPTH, CYCLE_DEPTH, ENGAGE=ENGAGE, useClimb=False)
+    combinedForces = CalcTouchingArea(
+        RotPosition, flutes, cutDepth, CYCLE_DEPTH,
+        ENGAGE=engage, useClimb=False, radius=radius
+    )
     if AVG_N > 0:
         combinedForces = moving_average(combinedForces, AVG_N, )
-    DIFF_KONW = combinedForces[(180 <= ROTATION) & (ROTATION <= (180 + 360))]
+    DIFF_KONW = combinedForces[(180 <= RotPosition) & (RotPosition <= (180 + 360))]
     DIFF_KONW = DIFF_KONW.max() - DIFF_KONW.min()
 
-    if DoPlot:
-        plt.plot(ROTATION, combinedForces)
+    if doPlot:
+        plt.plot(RotPosition, combinedForces)
 
         plt.subplot(2, 2, 4)
-        for flut in range(FLUTES):
+        for flut in range(flutes):
             "INITIAL CUT"
-            curFor = CalcEngageAreaAngle(ROTATION, flut * angleStep, engage=ENGAGE, useClimb=False)
-            plt.plot(ROTATION, curFor, color=usedCmap(flut / FLUTES))
+            curFor = CalcEngageAreaAngle(
+                RotPosition, flut * angleStep, engage=engage, useClimb=False, radius=radius
+            )
+            plt.plot(RotPosition, curFor, color=usedCmap(flut / flutes))
 
             "END CUT"
-            curFor = CalcEngageAreaAngle(ROTATION, flut * angleStep + endAngle,
-                                         engage=ENGAGE, useClimb=False)
-            plt.plot(ROTATION, curFor, color=usedCmap(flut / FLUTES), linestyle="dashed")
+            curFor = CalcEngageAreaAngle(
+                RotPosition, flut * angleStep + endAngle,
+                engage=engage, useClimb=False, radius=radius
+            )
+            plt.plot(RotPosition, curFor, color=usedCmap(flut / flutes), linestyle="dashed")
 
     def format():
         plt.grid(True)
         plt.grid(True)
 
-    if DoPlot:
+    if doPlot:
         plt.subplot(2, 2, 1)
         plt.title(f"Integrated cut. Climb. Diff: {DIFF_CLIMB:>3.3f}")
         format()
@@ -325,19 +379,19 @@ def PlotToolContact(FLUTES=2, ENGAGE=0.5, DEPTH=3, DoPlot=True, resolution=1):
             Line2D([0], [0], color='red', lw=2, linestyle='--', label='Last contact'),
         ]
         plt.suptitle(
-            f"{FLUTES} blades, Engage: {ENGAGE*100:>4.1f}%, Depth: {DEPTH}mm of {CYCLE_DEPTH}mm")
+            f"{flutes} blades, Engage: {engage*100:>4.1f}%, Depth: {cutDepth}mm of {CYCLE_DEPTH}mm")
         plt.xlabel("Degrees")
-        plt.xticks(np.arange(0, ROTATION[-1] + 5, 90), rotation=30,)
+        plt.xticks(np.arange(0, RotPosition[-1] + 5, 90), rotation=30,)
         plt.legend(handles=custom_lines, loc='upper right')
 
         plt.subplot(2, 2, 3)
         plt.xlabel("Degrees")
-        plt.xticks(np.arange(0, ROTATION[-1] + 5, 90), rotation=30,)
+        plt.xticks(np.arange(0, RotPosition[-1] + 5, 90), rotation=30,)
         plt.legend(handles=custom_lines, loc='upper right')
 
         plt.tight_layout()
 
-    return DIFF_CLIMB, MAX_FORCE, GAP
+    return DIFF_CLIMB / flutes, MAX_FORCE / flutes, GAP
 
 
 def PlotMesh(FLUTES=2, ENGAGE=0.2, useClimb=True):
@@ -357,8 +411,8 @@ def PlotMesh(FLUTES=2, ENGAGE=0.2, useClimb=True):
     for ri, rad in enumerate(ROTATION):
         print(f"{rad / ROTATION[-1]:>2.2f}", rad)
         for di, dep in enumerate(DEPTH):
-            res = getCombined(
-                ROTATION, FLUTES, dep, MAX_DEPTH, ENGAGE, useClimb=useClimb, resolution=1,
+            res = CalcTouchingArea(
+                ROTATION, FLUTES, dep, MAX_DEPTH, ENGAGE, useClimb=useClimb, rotationResolution=1,
                 # chip=0.3, radius=4
             )
             res = moving_average(res, 5)
@@ -409,13 +463,17 @@ def renderPlots():
                 plt.close()
 
 
-def compare():
+def plotForces(RADIUS=4):
+    ENGAGE = np.arange(0.1, 1.01, 0.02)
     ENGAGE = np.arange(0.1, 1.01, 0.025)
-    DEPTH = np.arange(0, 8.01, 0.2)
     # ENGAGE = np.arange(0.1, 1.01, 0.05)
-    # DEPTH = np.arange(0, 8.01, 0.25)
-    # ENGAGE = np.arange(0.1, 1.01, 0.25)
-    # DEPTH = np.arange(0, 8.01, 1)
+    # ENGAGE = np.arange(0.1, 1.01, 0.1)
+
+    # bad for 4 artifacts # DEPTH = np.arange(0, 10.01, 0.2)
+    DEPTH = np.arange(0, 10.01, 0.1)
+    # DEPTH = np.arange(0, 10.01, 0.25)
+    # DEPTH = np.arange(0, 10.01, 0.5)
+    # DEPTH = np.arange(0, 10.01, 1)
 
     XX, YY = np.meshgrid(ENGAGE, DEPTH)
     RESDIFF = XX * 0
@@ -425,11 +483,18 @@ def compare():
     VIBR = XX * 0
     ContactSum = XX * 0
 
-    for fl in [2, 3, 4]:
-        plt.figure(figsize=(12, 7), dpi=150)
+    for fl in range(1, 7):
+        DPI = 200
+        SIZE = (12, 8)
+        plt.figure(figsize=SIZE, dpi=DPI)
+
         for di, dep in enumerate(DEPTH):
             for ei, eng in enumerate(ENGAGE):
-                diffClimb, forceCLimb, hillSize = PlotToolContact(fl, eng, dep, False, resolution=1)
+                diffClimb, forceCLimb, hillSize = PlotToolContact(
+                    fl, eng, dep,
+                    doPlot=False, positionResolution=1, IntegrationRes=1,
+                    radius=RADIUS
+                )
                 RESDIFF[di, ei] = diffClimb
                 RESFORCE[di, ei] = forceCLimb
                 RAMPIN[di, ei] = hillSize[0]
@@ -437,32 +502,41 @@ def compare():
                 VIBR[di, ei] = diffClimb * forceCLimb
                 ContactSum[di, ei] = np.sum(hillSize)
 
+        LEVELS = 20
         plt.subplot(1, 2, 1)
-        plt.contourf(XX, YY, RESDIFF, cmap="turbo", levels=15)
+        plt.suptitle(
+            f"Approximation for resisting material area for helix cutter, radius: {RADIUS}mm, blades: {fl}", size=15)
+        plt.contourf(XX, YY, RESDIFF, cmap="turbo", levels=LEVELS)
         plt.ylabel("Depth")
         plt.xlabel("Engage")
-        plt.grid(True)
-        plt.title(f"Pseudo wibracje (różnica oporu), Ostrza: {fl}")
-        plt.colorbar()
-        plt.subplot(1, 2, 2)
-        plt.contourf(XX, YY, RESFORCE, cmap="turbo", levels=15)
-        # plt.ylabel("Depth")
-        plt.xlabel("Engage")
-        plt.grid(True)
-        plt.title(f"Opór styku frezu helixowego, Ostrza: {fl}")
+        plt.grid(True, alpha=0.5, color='white')
+        plt.title(f"Difference between min and max (unstability) $[mm^2]$")
         plt.colorbar()
 
+        plt.subplot(1, 2, 2)
+        plt.contourf(XX, YY, RESFORCE, cmap="turbo", levels=LEVELS)
+        plt.xlabel("Engage")
+        plt.xticks(np.arange(ENGAGE[0], 1.001, 0.1))
+        plt.grid(True, alpha=0.5, color='white')
+        plt.title(f"Maximal area $[mm^2]$")
+        plt.colorbar()
+        contours = plt.contour(
+            XX, YY, RESFORCE, levels=LEVELS,
+            linewidths=1.5, colors="black", alpha=0.8
+        )
+        plt.clabel(contours, inline=True, fontsize=10)
+
+        name = os.path.join("images", f"Resistance_{fl}_{RADIUS}mm_.png")
         plt.tight_layout()
-        name = f"PseudoWibracje_{fl}_.png"
-        plt.savefig(os.path.join("images", name))
+        plt.savefig(name)
         print(f"Saved image: {name}")
         plt.close()
 
-        plt.figure(figsize=(12, 7), dpi=150)
+        plt.figure(figsize=SIZE, dpi=DPI)
         plt.contourf(XX, YY, STABLE, cmap="terrain_r", levels=15)
         plt.xlabel("Engage")
         plt.ylabel("Depth")
-        plt.grid(True)
+        plt.grid(True, alpha=0.5, color='white')
         plt.colorbar()
         plt.title(f"Dlugosc Stabilnego oporu. Ostrza: {fl}")
         plt.tight_layout()
@@ -470,25 +544,23 @@ def compare():
         # plt.savefig(name)
         plt.close()
 
-        plt.figure(figsize=(12, 7), dpi=150)
+        plt.figure(figsize=SIZE, dpi=DPI)
         plt.contourf(XX, YY, VIBR, cmap="turbo", levels=15)
         plt.xlabel("Engage")
         plt.ylabel("Depth")
         plt.grid(True)
         plt.colorbar()
-        plt.title(f"Pseudo wibracje skalowane z oporem, Ostrza: {fl}")
+        plt.title(f"Unstable work scaled with magnitude, blades: {fl}")
         contours = plt.contour(XX, YY, VIBR, levels=15, linewidths=1.5, colors="black")
 
         # Add labels on contour lines
         plt.clabel(contours, inline=True, fontsize=8)
-
+        name = os.path.join("images", f"Resistance_{fl}_{RADIUS}mm_Combined.png")
         plt.tight_layout()
-        name = f"PseudoWibracje_{fl}_Skalowane.png"
-        name = os.path.join("images", name)
         plt.savefig(name)
         plt.close()
 
-        plt.figure(figsize=(12, 8), dpi=150)
+        plt.figure(figsize=SIZE, dpi=DPI)
         plt.subplot(2, 1, 1)
         plt.contourf(XX, YY, RAMPIN, cmap="terrain_r", levels=15)
         plt.xlabel("Engage")
@@ -520,8 +592,14 @@ if __name__ == "__main__":
     # PlotToolContact(2, 0.3, 2)
     # PlotToolContact(2, 0.5, 4.8)
     # PlotToolContact(2, 0.3, 2)
-    PlotToolContact(3, 0.3, 5)
+    # PlotToolContact(1, 0.4, 2)
+    # PlotToolContact(1, 0.5, 10)
+    # PlotToolContact(6, 0.4, 5)
+    # PlotToolContact(4, 0.5, 3, radius=1)
+    # PlotToolContact(4, 0.5, 3, radius=3)
     # PlotToolContact(2, 1, 2)
-    plt.show()
+    # plt.show()
     # renderPlots()
-    # compare()
+    plotForces(1)
+    plotForces(4)
+    # plotForces(6)

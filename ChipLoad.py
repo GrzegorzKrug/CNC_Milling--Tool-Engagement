@@ -21,8 +21,8 @@ def reverseChipLoad(feed_mm_min, rpm, flutesFrom, loadFrom, flutesTo):
 
 
 if __name__ == "__main__":
-    Feed = np.linspace(200, 3000, 100)
-    Rpm = np.linspace(8000, 20000, 100)
+    Feed = np.linspace(0, 3000, 100)
+    Rpm = np.linspace(1000, 25000, 100)
     F, R = np.meshgrid(Feed, Rpm)
 
     chipLoad2 = CalcChipLoad(F, R, 2)
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     # usedCmap = get_cmap('terrain')
     usedCmap = get_cmap('nipy_spectral')
 
-    plt.figure(figsize=(12, 8), dpi=120)
+    plt.figure(figsize=(14, 9), dpi=110)
 
     def makeChipLoadPLot(F, R, blades, ColorSteps, style='solid', barAX=None):
         """"""
@@ -79,23 +79,26 @@ if __name__ == "__main__":
             tkLables = colorTks.round(3)  # Set tick labels
             cbar.set_ticks(colorTks)
             cbar.set_ticklabels(tkLables)
-        plt.ylim(8000, 16000)
     Nx, Ny = 2, 2
     barAX = plt.subplot(Nx, Ny, 4)
-
+    LIMX = np.array([200, 2000])
+    LIMY = np.array([3000, 15000])
     plt.subplot(Nx, Ny, 1)
     makeChipLoadPLot(F, R, 2, ColorSteps)
-    plt.xlim(500, 2000)
+    plt.xlim(*LIMX)
+    plt.ylim(*LIMY)
 
     plt.subplot(Nx, Ny, 2)
     makeChipLoadPLot(F, R, 3, ColorSteps)
     # plt.xlim(500, 1500)
-    plt.xlim(500, 2000)
+    plt.xlim(*LIMX)
+    plt.ylim(*LIMY + 2000)
 
     plt.subplot(Nx, Ny, 3)
     makeChipLoadPLot(F, R, 4, ColorSteps, barAX=barAX)
     # plt.xlim(600, 1800)
-    plt.xlim(500, 2000)
+    plt.xlim(*LIMX)
+    plt.ylim(*LIMY + 3000)
 
     plt.subplot(Nx, Ny, 4)
     plt.title("Chip load [mm]", size=14)
