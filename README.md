@@ -129,3 +129,25 @@ $$W_r = Radius - \sqrt{Radius^2 - \left(\frac{Chipload}{2}\right)^2}$$
 Formula is applicable for real model.
 
 ![Rubbing plot](images/LeftOver.png)
+
+
+
+## Pocket Engage
+
+First cut is always 100%, but next layers can be smaller, depening on path choice.
+
+Here you can see if path is parrarel to previous cut or diagonal. New cut will have increased cutter engage.
+
+Diagonal cut at 45° is worst.
+
+Green arrow shows better way to cut new layers. It is optimized, but this means cutter has to comeback and recut skipped surface.
+
+![Pocket Engaging new layer](images/PocketEngageHow.png)
+
+
+### It happens on convetional, climb and raster paths!
+
+On this plot u can see how cutter engage with meterial when entering new layer.
+
+![Pocket Engaging new layer](images/PocketEngage.png)
+
