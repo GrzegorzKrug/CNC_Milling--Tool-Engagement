@@ -151,3 +151,5 @@ On this plot u can see how cutter engage with meterial when entering new layer.
 
 ![Pocket Engaging new layer](images/PocketEngage.png)
 
+### Conclusion
+Never use more than 50% of cutter.
